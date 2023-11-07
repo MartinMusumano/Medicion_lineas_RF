@@ -6,6 +6,8 @@ from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import Ridge
 from scipy.optimize import minimize
+import numba
+from numba import jit
 
 # ------------------------ Funciones comunes --------------------------
 
@@ -71,24 +73,21 @@ def measure_distribution(measures, plot=True):
 
 
 # --------------- Funciones de "Medición" de pixeles -------------------
-
-# Primer pixel de la fila
+# Primer pixel de la fila (en blanco)
+# Optimizada con numba
+@jit(nopython=True)
 def first_pixel(row):
-  ix = None
-  j = 0
+    for i in range(len(row)):
+        if 255 == row[i]:
+            return i
+    return None
 
-  for i in row:
-    if i == 255:
-      ix = j
-      break
-    j += 1
-
-  return ix
-
-# Ultimo pixel de la fila
+# Ultimo pixel de la fila (en blanco)
+# Optimizada con numba
+@jit(nopython=True)
 def last_pixel(row):
   i = first_pixel(np.flip(row)) # Indice "desde atras" / Optimizar
-  if i:
+  if i is not None:
     return len(row) - i - 1
   else:
     return None
@@ -173,19 +172,20 @@ class DefineThreshold():
         self.img = img
         self.fun = fun
         self.two_params = two_params
-        self.th1 = 50
+        self.th1 = 100
         self.th2 = 255
         self.scale = scale
 
-  def __mean_diams(self, mat):
+  def __mean_diams(self, mat):  # Estimación del diametro en pixeles
     c = int(mat.shape[0]/2)
-    d = int(mat.shape[0]/10)
+    d = min(500, c-1)
     diams = []
     for row in mat[c-d:c+d]:       # Recorre cada fila y mide la distancia entre bordes
       first = first_pixel(row)  
-      last = last_pixel(row)
-      if first and last:
-        diams.append(last - first)
+      if first:
+        last = last_pixel(row)
+        if last:
+          diams.append(last - first)
     return np.mean(diams if len(diams) else [0])
 
   def __show_edges(self, img, mean='', name='Edges'):
@@ -196,25 +196,26 @@ class DefineThreshold():
     resized = cv2.putText(resized, mean, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, 255, 2) 
     cv2.imshow(name, resized)
 
-  def __find_edges(self, thresh1=0, thresh2=127):
+  def __find_edges(self, thresh1=100, thresh2=255, **kwargs):
       try:
         self.th1 = cv2.getTrackbarPos('Thresh 1', 'Edges')
         if self.two_params:
           self.th2 = cv2.getTrackbarPos('Thresh 2', 'Edges')
       except:
-        self.th1 = 50
+        self.th1 = 100
         self.th2 = 255
-      edge = self.fun(self.img, self.th1, self.th2)
+      edge = self.fun(self.img, self.th1, self.th2, **kwargs)
       mean = self.__mean_diams(edge)
       self.__show_edges(edge, str(round(mean, 4)), 'Edges')
 
-  def get_th(self):
+  # Llamar para obtener umbrales mediante GUI.
+  def get_th(self, **kwargs): 
     cv2.namedWindow('Edges')
     cv2.createTrackbar('Thresh 1','Edges', self.th1, 255, self.__find_edges)
     if self.two_params:
       cv2.createTrackbar('Thresh 2','Edges', self.th2, 255, self.__find_edges)
   
-    self.__find_edges(self.th1, self.th2)
+    self.__find_edges(self.th1, self.th2, **kwargs)
 
     cv2.waitKey(0)
     cv2.destroyAllWindows()
@@ -231,12 +232,14 @@ def Thresholding(mat, thresh=200, max_val=255):
     return th
 
 # Devuelve bordes detectados mediante Canny
-def Canny_Edges(mat, th1=100, th2=200, L2gradient=True):
-    '''Encuentra bordes en la imagen de entrada y los marca en los bordes del mapa de salida 
-       utilizando el algoritmo Canny.
-       El valor más pequeño entre umbral1 y umbral2 se utiliza para la vinculación de bordes.
-       El valor más grande se utiliza para encontrar segmentos iniciales de bordes fuertes.'''
-    img_blur = cv2.GaussianBlur(mat, (3,3), sigmaX=0, sigmaY=0)  # Blurea la imagen (mejor deteccion)
+def Canny_Edges(mat, th1=100, th2=200, L2gradient=True, blur_size=3):
+    '''Encuentra bordes en la imagen de entrada (mat) y los marca en los bordes del mapa 
+       de salida utilizando el algoritmo Canny.
+       El valor más pequeño entre th1 y th2 se utiliza para la vinculación de bordes.
+       El valor más grande se utiliza para encontrar segmentos iniciales de bordes fuertes.
+       L2gradient: flag, indica si se utiliza norma exacta o no
+       blur_size: tamaño del kernel para el filtro gaussiano'''
+    img_blur = cv2.GaussianBlur(mat, (blur_size, blur_size), sigmaX=0, sigmaY=0)  # Blurea la imagen (mejor deteccion)
     edges = cv2.Canny(img_blur, th1, th2, L2gradient=L2gradient) # Canny Edge Detection
     return edges
 
