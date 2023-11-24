@@ -8,6 +8,7 @@ from sklearn.linear_model import Ridge
 from scipy.optimize import minimize
 import numba
 from numba import jit
+import os
 
 # ------------------------ Funciones comunes --------------------------
 
@@ -70,6 +71,18 @@ def measure_distribution(measures, plot=True):
     print(f"{count} filas con media {mean} ({u}) px\n")
 
   return (mean, u)
+
+# Guardar imagen y añadir texto al final del nombre
+def save_img(img, img_path, legend=''):
+    dir_name, ext = os.path.splitext(img_path)
+
+    tiff = 0
+    if ext == ".tif" or ext == ".tiff":
+        tiff = 1
+    try:
+      cv2.imwrite(f"{dir_name}_{legend}{ext}", img, [cv2.IMWRITE_EXR_COMPRESSION_NO, 1, cv2.IMWRITE_TIFF_COMPRESSION, tiff])
+    except:
+       print("Cannot save image")
 
 
 # --------------- Funciones de "Medición" de pixeles -------------------
@@ -246,15 +259,15 @@ def Canny_Edges(mat, th1=100, th2=200, L2gradient=True, blur_size=3):
 # Aplica filtro laplaciano (pasaalto) y devuelve
 # imagen en blanco y negro de acuerdo a los valores de umbral
 # FUNCIONA PEOR QUE LOS OTROS MÉTODOS
-# def Laplacian(mat, thresh=127, max_val=255):
-#     '''Aplica filtro laplaciano (pasaalto) y convierte la imagen de acuerdo 
-#       al valor del del pixel en escala de grises respecto al umbral.'''
-#     img_blur = cv2.GaussianBlur(mat, (3,3), sigmaX=0, sigmaY=0)  # Blurea la imagen (mejor deteccion)
-#     grises = cv2.cvtColor(img_blur, cv2.COLOR_BGR2GRAY)   #Convierte a grises
-#     dst = cv2.Laplacian(grises, cv2.CV_64F, ksize=3)
-#     abs_dst = cv2.convertScaleAbs(dst)
-#     _,th = cv2.threshold(abs_dst, thresh, max_val, cv2.THRESH_BINARY)   #Aplica umbral, por ahora a ojo
-#     return th
+def Laplacian(mat, thresh=127, max_val=255):
+    '''Aplica filtro laplaciano (pasaalto) y convierte la imagen de acuerdo 
+      al valor del del pixel en escala de grises respecto al umbral.'''
+    img_blur = cv2.GaussianBlur(mat, (3,3), sigmaX=0, sigmaY=0)  # Blurea la imagen (mejor deteccion)
+    grises = cv2.cvtColor(img_blur, cv2.COLOR_BGR2GRAY)   #Convierte a grises
+    dst = cv2.Laplacian(grises, cv2.CV_64F, ksize=3)
+    abs_dst = cv2.convertScaleAbs(dst)
+    _,th = cv2.threshold(abs_dst, thresh, max_val, cv2.THRESH_BINARY)   #Aplica umbral, por ahora a ojo
+    return th
 
 # ---------------- Función para rotar y enderezar ---------------------
 # Basado en las funciones de Andri & Magnus Hoff (en Stack Overflow)
@@ -347,6 +360,8 @@ def crop_around_center(image, width, height):
 
 # Combina las funciones de rotar, calcular el mayor rectángulo y cortar
 def rotate_and_cut(image, degrees):
+    if degrees == 0:
+       return image
     image_height, image_width = image.shape[0:2]
     image_rotated = rotate_image(image, degrees)
     max_size = largest_rotated_rect(image_width, image_height, math.radians(degrees))
