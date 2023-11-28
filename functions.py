@@ -119,7 +119,7 @@ def direct_distance(mat, min_dif=10, outlier_percent = 2, plot=True):
 
         outlier_percent : Float, Minimo porcentaje respecto a la 
         moda para considerar una medición como outlier (y descartarla).
-        Default: 2
+        Default: 2 %
 
         plot: bool, Define si se imprimen o no mensajes en consola.
         Default: True
