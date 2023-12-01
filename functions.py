@@ -399,6 +399,8 @@ def ridge_grados(grados, results, orden, ax, alpha=0, label="y"):
         Retorna
         ------
         best_aj : float, mejor ángulo encontrado (aquel que minimiza results). 
+
+        score : float, score resultante del ajuste.
         '''
         pipe = Pipeline([
                 ('poly_features', PolynomialFeatures(orden)),
@@ -449,7 +451,52 @@ def ridge_grados(grados, results, orden, ax, alpha=0, label="y"):
                 best_aj = best.x[0]
 
         print(label)
-        print(f"Mejor angulo medido: {best_med}°")
-        print(f"Mejor angulo ajustado: {best_aj}°. Score={score}\n")
+        print(f"Mejor angulo medido: {round(best_med, 3)}°")
+        print(f"Mejor angulo ajustado: {round(best_aj, 3)}°. Score={round(score, 3)}\n")
 
-        return best_aj
+        return best_aj, score
+
+
+def align(mat, degrees, fun, **kwargs):
+    '''
+      Función para elección del ángulo (empíricamente).
+      Válido para ángulos pequeños (pueden perderse los bordes al cortar, verificar).
+      Parametros
+      ----------
+      mat: np.array, matriz con la imagen.
+
+      degrees : np.array, vector con los grados a probar.
+
+      Retorna
+      ------
+      ang_ajustado : float, ángulo encontrado en el ajuste de cada lado (pesado según
+      el score del ajuste). 
+    '''
+    results2 = []
+
+    for g in degrees:   # Verifica uno a uno los ángulos
+        img = rotate_and_cut(mat, g)  # Rota la imagen g grados
+        edges = fun(img, **kwargs)  # Detección de bordes
+        # Mide todos los primeros y últimos pixeles
+        firsts = []
+        lasts = []
+        for row in edges:
+            f = first_pixel(row)
+            l = last_pixel(row)
+            if f:
+                firsts.append(f)                
+            if l:
+                lasts.append(l)
+        results2.append( [np.std(firsts), np.std(lasts)])
+    
+    results2 = np.array(results2)
+
+    # Ajuste y visualización
+    fig, ax = plt.subplots(2)
+    fig.tight_layout()
+    angulo1, score1 = ridge_grados(degrees, results2[:,0], 2, ax[0], label="Desvío primer pixel (px)")
+    angulo2, score2 = ridge_grados(degrees, results2[:,1], 2, ax[1], label="Desvío último pixel (px)")
+    ang_ajustado = (score1*angulo1 + score2*angulo2)/(score1 + score2)
+    print("Ajuste entre ambos lados:", round(ang_ajustado, 3), '°')
+    return ang_ajustado
+
