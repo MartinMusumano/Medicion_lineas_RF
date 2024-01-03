@@ -242,17 +242,17 @@ class DefineThreshold():
   
 
 class EdgesViewer():
-    def __init__(self, orig, edges, first_edge = True, N_points=75):
+    def __init__(self, orig, edges, first_edge = True, N_points=50):
         plt.close('all')
 
         self.orig_blur = cv2.GaussianBlur(orig, (3, 3), sigmaX=0, sigmaY=0)  # Blurea la imagen (mejor deteccion)
         if first_edge:
             self.ix_edges = np.array([first_pixel(row) for row in edges], dtype=np.int32)
-            np.nan_to_num(self.ix_edges, copy=False)
+            self.ix_edges = np.nan_to_num(self.ix_edges)
         else:
             self.ix_edges = np.array([last_pixel(row) for row in edges], dtype=np.int32)
-            np.nan_to_num(self.ix_edges, copy=False)
-        center = int(np.mean(self.ix_edges))
+            self.ix_edges = np.nan_to_num(self.ix_edges)
+        center = np.bincount(self.ix_edges).argmax()
         self.xmin = center - N_points//2
         self.xmax = center + N_points//2
 
